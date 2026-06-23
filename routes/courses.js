@@ -94,7 +94,14 @@ router.get('/', async (req, res) => {
 // @access  Private/Admin
 router.get('/admin', protect, admin, async (req, res) => {
   try {
-    const courses = await Course.find({}).populate('instructor', 'name email');
+    const courses = await Course.find({}).populate('instructor', 'name email').lean();
+    
+    // Fetch enrolled count for each course
+    for (let course of courses) {
+      const count = await Order.countDocuments({ course: course._id, status: 'completed' });
+      course.enrolledCount = count;
+    }
+    
     return res.json(courses);
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -796,7 +803,7 @@ router.post('/admin/certificate-requests/:requestId/approve', protect, admin, as
           </h2>
           
           <h3 style="font-size: 28px; font-weight: 600; margin-bottom: 4%; margin-top: 2%; max-width: 800px; text-transform: uppercase; color: #334155;">
-            ${request.course.category || 'Specialized Program'}
+            ${request.course.title}
           </h3>
           
           <div style="display: flex; gap: 60px; align-items: center; margin-top: 5%;">
