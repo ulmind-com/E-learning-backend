@@ -67,7 +67,14 @@ async function uploadToCloudinary(filePath, options = {}) {
 }
 
 // ==================== VIDEO UPLOAD ====================
-router.post('/', uploadVideo.single('video'), async (req, res) => {
+router.post('/', (req, res, next) => {
+  uploadVideo.single('video')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message || 'Invalid file type' });
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No video file provided' });
   }
@@ -90,7 +97,14 @@ router.post('/', uploadVideo.single('video'), async (req, res) => {
 });
 
 // ==================== IMAGE UPLOAD ====================
-router.post('/image', uploadImage.single('image'), async (req, res) => {
+router.post('/image', (req, res, next) => {
+  uploadImage.single('image')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message || 'Invalid file type' });
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No image file provided' });
   }
@@ -116,7 +130,14 @@ router.post('/image', uploadImage.single('image'), async (req, res) => {
 });
 
 // ==================== DOCUMENT UPLOAD ====================
-router.post('/document', uploadDocument.single('document'), async (req, res) => {
+router.post('/document', (req, res, next) => {
+  uploadDocument.single('document')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message || 'Invalid file type' });
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No document file provided' });
   }
@@ -141,3 +162,4 @@ router.post('/document', uploadDocument.single('document'), async (req, res) => 
 });
 
 export default router;
+
