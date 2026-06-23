@@ -781,7 +781,7 @@ router.post('/admin/certificate-requests/:requestId/approve', protect, admin, as
     // Get Graphic Template
     const Setting = (await import('../models/Setting.js')).default;
     const templateSetting = await Setting.findOne({ key: 'certificateGraphicTemplate' });
-    const bgImage = templateSetting && templateSetting.value ? `http://localhost:5000${templateSetting.value}` : '';
+    const bgImage = templateSetting && templateSetting.value ? `https://e-learning-backend-1-r539.onrender.com${templateSetting.value}` : '';
 
     // Generate HTML overlay certificate
     // Generate HTML overlay certificate
