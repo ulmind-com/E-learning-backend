@@ -1,117 +1,143 @@
 import express from 'express';
 import multer from 'multer';
-import path from 'path';
+import cloudinary from '../config/cloudinary.js';
 import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 
-// Ensure uploads directory exists
-const uploadDir = 'uploads/';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Ensure temp uploads directory exists for multer buffer
+const tempDir = 'uploads/temp/';
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
 }
 
-// Multer config
+// Multer stores files temporarily on disk before Cloudinary upload
 const storage = multer.diskStorage({
   destination(req, file, cb) {
-    cb(null, 'uploads/');
+    cb(null, tempDir);
   },
   filename(req, file, cb) {
-    cb(
-      null,
-      `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`
-    );
+    cb(null, `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`);
   },
 });
 
-function checkFileType(file, cb) {
+// --- File type validators ---
+function checkVideoFileType(file, cb) {
   const filetypes = /mp4|mkv|avi|mov|webm/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = filetypes.test(file.mimetype);
-
-  if (extname && mimetype) {
-    return cb(null, true);
-  } else {
-    cb(new Error('Videos only!'));
-  }
+  const mimetype = /video/.test(file.mimetype);
+  if (extname && mimetype) return cb(null, true);
+  cb(new Error('Videos only!'));
 }
-
-const upload = multer({
-  storage,
-  fileFilter: function (req, file, cb) {
-    checkFileType(file, cb);
-  },
-});
-
-router.post('/', upload.single('video'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).send({ message: 'No video file provided' });
-  }
-  
-  // Return the path that can be accessed from the frontend
-  res.send({
-    message: 'Video Uploaded Successfully',
-    videoUrl: `/uploads/${req.file.filename}`,
-  });
-});
 
 function checkImageFileType(file, cb) {
   const filetypes = /jpg|jpeg|png|gif|webp/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = filetypes.test(file.mimetype);
-
-  if (extname && mimetype) {
-    return cb(null, true);
-  } else {
-    cb(new Error('Images only!'));
-  }
+  const mimetype = /image/.test(file.mimetype);
+  if (extname && mimetype) return cb(null, true);
+  cb(new Error('Images only!'));
 }
-
-const uploadImage = multer({
-  storage,
-  fileFilter: function (req, file, cb) {
-    checkImageFileType(file, cb);
-  },
-});
-
-router.post('/image', uploadImage.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).send({ message: 'No image file provided' });
-  }
-  
-  res.send({
-    message: 'Image Uploaded Successfully',
-    imageUrl: `/uploads/${req.file.filename}`,
-  });
-});
 
 function checkDocumentFileType(file, cb) {
   const filetypes = /pdf|doc|docx|ppt|pptx|txt|jpg|jpeg|png|webp/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  
-  if (extname) {
-    return cb(null, true);
-  } else {
-    cb(new Error('Documents and Images only!'));
+  if (extname) return cb(null, true);
+  cb(new Error('Documents and Images only!'));
+}
+
+const uploadVideo = multer({ storage, fileFilter: (req, file, cb) => checkVideoFileType(file, cb) });
+const uploadImage = multer({ storage, fileFilter: (req, file, cb) => checkImageFileType(file, cb) });
+const uploadDocument = multer({ storage, fileFilter: (req, file, cb) => checkDocumentFileType(file, cb) });
+
+// Helper: upload file to Cloudinary and clean up temp file
+async function uploadToCloudinary(filePath, options = {}) {
+  try {
+    const result = await cloudinary.uploader.upload(filePath, options);
+    // Remove temp file after successful upload
+    fs.unlink(filePath, (err) => {
+      if (err) console.error('Failed to delete temp file:', err);
+    });
+    return result;
+  } catch (error) {
+    // Remove temp file even on failure
+    fs.unlink(filePath, () => {});
+    throw error;
   }
 }
 
-const uploadDocument = multer({
-  storage,
-  fileFilter: function (req, file, cb) {
-    checkDocumentFileType(file, cb);
-  },
+// ==================== VIDEO UPLOAD ====================
+router.post('/', uploadVideo.single('video'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No video file provided' });
+  }
+
+  try {
+    const result = await uploadToCloudinary(req.file.path, {
+      resource_type: 'video',
+      folder: 'e-learning/videos',
+      chunk_size: 6000000, // 6MB chunks for large videos
+    });
+
+    res.json({
+      message: 'Video Uploaded Successfully',
+      videoUrl: result.secure_url,
+    });
+  } catch (error) {
+    console.error('Cloudinary video upload error:', error);
+    res.status(500).json({ message: 'Failed to upload video to cloud storage' });
+  }
 });
 
-router.post('/document', uploadDocument.single('document'), (req, res) => {
+// ==================== IMAGE UPLOAD ====================
+router.post('/image', uploadImage.single('image'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).send({ message: 'No document file provided' });
+    return res.status(400).json({ message: 'No image file provided' });
   }
-  
-  res.send({
-    message: 'Document Uploaded Successfully',
-    documentUrl: `/uploads/${req.file.filename}`,
-  });
+
+  try {
+    const result = await uploadToCloudinary(req.file.path, {
+      resource_type: 'image',
+      folder: 'e-learning/images',
+      transformation: [
+        { width: 1200, crop: 'limit' }, // Optimize: cap width at 1200px
+        { quality: 'auto', fetch_format: 'auto' }, // Auto-optimize quality & format
+      ],
+    });
+
+    res.json({
+      message: 'Image Uploaded Successfully',
+      imageUrl: result.secure_url,
+    });
+  } catch (error) {
+    console.error('Cloudinary image upload error:', error);
+    res.status(500).json({ message: 'Failed to upload image to cloud storage' });
+  }
+});
+
+// ==================== DOCUMENT UPLOAD ====================
+router.post('/document', uploadDocument.single('document'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No document file provided' });
+  }
+
+  try {
+    // Check if the document is actually an image
+    const isImage = /\.(jpg|jpeg|png|webp)$/i.test(req.file.originalname);
+    
+    const result = await uploadToCloudinary(req.file.path, {
+      resource_type: isImage ? 'image' : 'raw',
+      folder: 'e-learning/documents',
+    });
+
+    res.json({
+      message: 'Document Uploaded Successfully',
+      documentUrl: result.secure_url,
+    });
+  } catch (error) {
+    console.error('Cloudinary document upload error:', error);
+    res.status(500).json({ message: 'Failed to upload document to cloud storage' });
+  }
 });
 
 export default router;
