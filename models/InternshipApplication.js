@@ -31,6 +31,11 @@ const internshipApplicationSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    internship: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Internship',
+      required: true,
+    },
     resume: {
       name: { type: String, required: true },
       email: { type: String, required: true },

@@ -1,9 +1,39 @@
 import express from 'express';
 import { protect, admin } from '../middleware/auth.js';
+import Internship from '../models/Internship.js';
 import InternshipTask from '../models/InternshipTask.js';
 import InternshipApplication from '../models/InternshipApplication.js';
 
 const router = express.Router();
+
+// ==========================================
+// PUBLIC ROUTES
+// ==========================================
+
+// @route   GET /api/internship/list
+// @desc    Get all active internships
+// @access  Public
+router.get('/list', async (req, res) => {
+  try {
+    const internships = await Internship.find({ active: true }).sort({ createdAt: -1 });
+    res.json(internships);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/internship/list/:id
+// @desc    Get specific internship details
+// @access  Public
+router.get('/list/:id', async (req, res) => {
+  try {
+    const internship = await Internship.findById(req.params.id);
+    if (!internship) return res.status(404).json({ message: 'Internship not found' });
+    res.json(internship);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 // ==========================================
 // STUDENT ROUTES
@@ -14,14 +44,25 @@ const router = express.Router();
 // @access  Private
 router.post('/apply', protect, async (req, res) => {
   try {
-    const existingApplication = await InternshipApplication.findOne({ user: req.user._id });
+    const { internshipId, ...resumeData } = req.body;
+
+    if (!internshipId) {
+      return res.status(400).json({ message: 'Internship ID is required' });
+    }
+
+    const existingApplication = await InternshipApplication.findOne({ 
+      user: req.user._id,
+      internship: internshipId 
+    });
+
     if (existingApplication) {
-      return res.status(400).json({ message: 'You have already applied for an internship.' });
+      return res.status(400).json({ message: 'You have already applied for this internship.' });
     }
 
     const application = new InternshipApplication({
       user: req.user._id,
-      resume: req.body,
+      internship: internshipId,
+      resume: resumeData,
     });
 
     const createdApplication = await application.save();
@@ -32,15 +73,19 @@ router.post('/apply', protect, async (req, res) => {
 });
 
 // @route   GET /api/internship/my-application
-// @desc    Get user's application and assigned tasks
+// @desc    Get user's applications and assigned tasks
 // @access  Private
 router.get('/my-application', protect, async (req, res) => {
   try {
-    const application = await InternshipApplication.findOne({ user: req.user._id }).populate('assignedTasks.task');
-    if (!application) {
-      return res.status(404).json({ message: 'Application not found' });
-    }
-    res.json(application);
+    const applications = await InternshipApplication.find({ user: req.user._id })
+      .populate('assignedTasks.task')
+      .populate('internship', 'title thumbnail');
+    
+    // We will return the first application for compatibility with existing UI, 
+    // or we could return all if the frontend is updated.
+    // Let's return the latest one for now, or all if we modify the frontend.
+    // I'll return the array and we'll handle it on frontend.
+    res.json(applications);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -51,9 +96,16 @@ router.get('/my-application', protect, async (req, res) => {
 // @access  Private
 router.post('/submit-task', protect, async (req, res) => {
   try {
-    const { taskId, gitRepo, liveLink, documentUrl } = req.body;
+    const { applicationId, taskId, gitRepo, liveLink, documentUrl } = req.body;
     
-    const application = await InternshipApplication.findOne({ user: req.user._id });
+    // Support legacy request without applicationId
+    let application;
+    if (applicationId) {
+      application = await InternshipApplication.findOne({ _id: applicationId, user: req.user._id });
+    } else {
+      application = await InternshipApplication.findOne({ user: req.user._id });
+    }
+
     if (!application) {
       return res.status(404).json({ message: 'Application not found' });
     }
@@ -78,6 +130,45 @@ router.post('/submit-task', protect, async (req, res) => {
 // ==========================================
 // ADMIN ROUTES
 // ==========================================
+
+// @route   POST /api/internship/manage
+// @desc    Create a new internship posting
+// @access  Private/Admin
+router.post('/manage', protect, admin, async (req, res) => {
+  try {
+    const internship = new Internship(req.body);
+    const created = await internship.save();
+    res.status(201).json(created);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   PUT /api/internship/manage/:id
+// @desc    Update an internship posting
+// @access  Private/Admin
+router.put('/manage/:id', protect, admin, async (req, res) => {
+  try {
+    const internship = await Internship.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!internship) return res.status(404).json({ message: 'Not found' });
+    res.json(internship);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   DELETE /api/internship/manage/:id
+// @desc    Delete an internship posting
+// @access  Private/Admin
+router.delete('/manage/:id', protect, admin, async (req, res) => {
+  try {
+    await Internship.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Internship removed' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 
 // @route   POST /api/internship/tasks
 // @desc    Create a new internship task template
@@ -110,7 +201,10 @@ router.get('/tasks', protect, admin, async (req, res) => {
 // @access  Private/Admin
 router.get('/applications', protect, admin, async (req, res) => {
   try {
-    const applications = await InternshipApplication.find({}).populate('user', 'name email').populate('assignedTasks.task');
+    const applications = await InternshipApplication.find({})
+      .populate('user', 'name email')
+      .populate('internship', 'title')
+      .populate('assignedTasks.task');
     res.json(applications);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -135,7 +229,10 @@ router.put('/applications/:id/verify', protect, admin, async (req, res) => {
     await application.save();
     
     // Repopulate for response
-    const updatedApplication = await InternshipApplication.findById(req.params.id).populate('user', 'name email').populate('assignedTasks.task');
+    const updatedApplication = await InternshipApplication.findById(req.params.id)
+      .populate('user', 'name email')
+      .populate('internship', 'title')
+      .populate('assignedTasks.task');
     res.json(updatedApplication);
   } catch (error) {
     res.status(500).json({ message: error.message });
