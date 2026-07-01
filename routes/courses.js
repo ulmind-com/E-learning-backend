@@ -155,6 +155,7 @@ router.post('/', protect, admin, async (req, res) => {
       duration,
       thumbnail,
       videos,
+      discountPercentage,
     } = req.body;
 
     if (!title || !description) {
@@ -173,6 +174,7 @@ router.post('/', protect, admin, async (req, res) => {
       duration: duration || '',
       thumbnail: thumbnail || '',
       videos: videos || [],
+      discountPercentage: courseType === 'free' ? 0 : (discountPercentage || 0),
       instructor: req.user._id,
     });
 
@@ -198,6 +200,7 @@ router.put('/:id', protect, admin, async (req, res) => {
       thumbnail,
       videos,
       chapters,
+      discountPercentage,
     } = req.body;
 
     const course = await Course.findById(req.params.id);
@@ -214,6 +217,7 @@ router.put('/:id', protect, admin, async (req, res) => {
     course.duration = duration !== undefined ? duration : course.duration;
     course.thumbnail = thumbnail !== undefined ? thumbnail : course.thumbnail;
     course.videos = videos !== undefined ? videos : course.videos;
+    course.discountPercentage = courseType === 'free' ? 0 : discountPercentage !== undefined ? discountPercentage : course.discountPercentage;
     if (chapters !== undefined) course.chapters = chapters;
 
     const updatedCourse = await course.save();
