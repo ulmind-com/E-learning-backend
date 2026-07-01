@@ -77,12 +77,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('grant-media', (targetSocketId, userId, roomId) => {
+    io.to(targetSocketId).emit('grant-media', userId, roomId);
+  });
+
+  socket.on('media-accepted', (userId, roomId) => {
     if (roomId && userId) {
       if (!grantedUsers[roomId]) grantedUsers[roomId] = new Set();
       grantedUsers[roomId].add(userId);
       io.to(roomId).emit('media-status-changed', Array.from(grantedUsers[roomId]));
     }
-    io.to(targetSocketId).emit('grant-media');
   });
 
   socket.on('revoke-media', (targetSocketId, userId, roomId) => {
