@@ -57,11 +57,6 @@ io.on('connection', (socket) => {
 
     socket.join(roomId);
 
-    // If student was already granted media before refresh, re-grant it
-    if (userDetails.role !== 'admin' && grantedUsers[roomId].has(userDetails.id)) {
-      socket.emit('grant-media');
-    }
-
     // Send the list of existing users to the new user
     const usersInRoom = roomUsers[roomId].filter(u => u.socketId !== socket.id);
     socket.emit('all-users', usersInRoom);
