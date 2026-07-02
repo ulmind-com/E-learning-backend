@@ -122,7 +122,10 @@ router.post('/create-order', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('Create Order error:', error);
-    res.status(500).json({ message: 'Failed to create order. Please try again later.' });
+    res.status(500).json({ 
+      message: 'Failed to create order.', 
+      error: error.error || error.message || error 
+    });
   }
 });
 
