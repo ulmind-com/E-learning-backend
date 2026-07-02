@@ -90,12 +90,12 @@ router.post('/create-order', protect, async (req, res) => {
     const options = {
       amount: amountInPaise,
       currency: 'INR',
-      receipt: `receipt_${Date.now()}_${req.user._id}`,
+      receipt: `rcpt_${Date.now().toString().slice(-6)}_${req.user._id.toString().slice(-6)}`,
     };
 
     const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_dummy_id',
-      key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_secret',
+      key_id: (process.env.RAZORPAY_KEY_ID || 'rzp_test_dummy_id').trim(),
+      key_secret: (process.env.RAZORPAY_KEY_SECRET || 'dummy_secret').trim(),
     });
 
     const razorpayOrder = await razorpay.orders.create(options);
@@ -168,7 +168,7 @@ router.post('/verify', protect, async (req, res) => {
     } else {
       const body = razorpay_order_id + '|' + razorpay_payment_id;
       const expectedSignature = crypto
-        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'dummy_secret')
+        .createHmac('sha256', (process.env.RAZORPAY_KEY_SECRET || 'dummy_secret').trim())
         .update(body.toString())
         .digest('hex');
 
