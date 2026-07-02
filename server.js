@@ -10,6 +10,7 @@ import uploadRoutes from './routes/upload.js';
 import settingsRoutes from './routes/settings.js';
 import doubtRoutes from './routes/doubts.js';
 import internshipRoutes from './routes/internship.js';
+import userRoutes from './routes/users.js';
 
 // Load env variables
 dotenv.config();
@@ -133,6 +134,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/doubts', doubtRoutes);
 app.use('/api/internship', internshipRoutes);
+app.use('/api/users', userRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 
