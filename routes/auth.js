@@ -48,6 +48,10 @@ router.post('/register', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        profileImage: user.profileImage,
+        mobile: user.mobile,
+        college: user.college,
+        state: user.state,
         token: generateToken(user._id),
       });
     } else {
@@ -78,6 +82,10 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        profileImage: user.profileImage,
+        mobile: user.mobile,
+        college: user.college,
+        state: user.state,
         token: generateToken(user._id),
       });
     } else {
