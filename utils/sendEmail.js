@@ -1,11 +1,12 @@
-import nodemailer from 'nodemailer';
-
 export const sendEmail = async ({ to, subject, html }) => {
   try {
-    // If SMTP credentials are not present, log the email to the console for development testing
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    const apiKey = process.env.BREVO_API_KEY;
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || 'noreply@e-learning.com';
+
+    // Fallback for local development if keys are missing
+    if (!apiKey) {
       console.log('\n=============================================');
-      console.log('MOCK EMAIL SENT (No SMTP Credentials Found)');
+      console.log('MOCK EMAIL SENT (No Brevo API Key Found)');
       console.log(`To: ${to}`);
       console.log(`Subject: ${subject}`);
       console.log('Body:');
@@ -14,24 +15,40 @@ export const sendEmail = async ({ to, subject, html }) => {
       return true;
     }
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail', // You can change this to your preferred provider
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+    const payload = {
+      sender: {
+        name: "E-Learning Platform",
+        email: senderEmail
       },
-    });
-
-    const mailOptions = {
-      from: `"E-Learning Platform" <${process.env.SMTP_USER}>`,
-      to,
-      subject,
-      html,
+      to: [
+        {
+          email: to
+        }
+      ],
+      subject: subject,
+      htmlContent: html
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent: %s', info.messageId);
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Brevo API Error:', errorData);
+      return false;
+    }
+
+    const data = await response.json();
+    console.log('Email sent successfully via Brevo, messageId:', data.messageId);
     return true;
+
   } catch (error) {
     console.error('Error sending email:', error);
     return false;
