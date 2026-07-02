@@ -1,10 +1,15 @@
 import mongoose from 'mongoose';
 
+const commentSchema = new mongoose.Schema({
+  text: { type: String, required: true },
+}, { timestamps: true });
+
 const reviewSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     rating: { type: Number, required: true },
-    comment: { type: String, required: true },
+    comment: { type: String }, // Legacy field, now optional
+    comments: [commentSchema], // New array for multiple comments
     user: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,

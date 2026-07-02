@@ -339,11 +339,11 @@ router.get('/:id/progress', protect, async (req, res) => {
 // @access  Private
 router.post('/:id/reviews', protect, async (req, res) => {
   try {
-    const { rating, comment } = req.body;
+    const { rating, comment, action, commentId } = req.body;
     const courseId = req.params.id;
 
-    if (!rating || !comment) {
-      return res.status(400).json({ message: 'Rating and comment are required' });
+    if (rating === undefined || rating === null) {
+      return res.status(400).json({ message: 'Rating is required' });
     }
 
     if (rating < 1 || rating > 5) {
@@ -357,7 +357,6 @@ router.post('/:id/reviews', protect, async (req, res) => {
     }
 
     // Check if user has purchased the course (free or paid)
-    // We check the Order collection for a completed status
     const hasPurchased = await Order.findOne({
       student: req.user._id,
       course: courseId,
@@ -373,26 +372,55 @@ router.post('/:id/reviews', protect, async (req, res) => {
       (r) => r.user.toString() === req.user._id.toString()
     );
 
+    // Ensure comments array exists (for legacy reviews migration in memory)
+    if (alreadyReviewed && !alreadyReviewed.comments) {
+      alreadyReviewed.comments = [];
+    }
+
     if (alreadyReviewed) {
       // Update existing review
       alreadyReviewed.rating = Number(rating);
-      alreadyReviewed.comment = comment;
+      
+      // Handle legacy comment string migration
+      if (alreadyReviewed.comment && alreadyReviewed.comments.length === 0) {
+        alreadyReviewed.comments.push({ text: alreadyReviewed.comment });
+        alreadyReviewed.comment = undefined; // clear legacy field
+      }
+
+      if (action === 'add_comment' && comment) {
+        alreadyReviewed.comments.push({ text: comment });
+      } else if (action === 'edit_comment' && commentId && comment) {
+        const commentToEdit = alreadyReviewed.comments.id(commentId);
+        if (commentToEdit) {
+          commentToEdit.text = comment;
+        }
+      } else if (action === 'delete_comment' && commentId) {
+        alreadyReviewed.comments.pull(commentId);
+      } else if (!action && comment) {
+        // Fallback or simple update
+        alreadyReviewed.comments.push({ text: comment });
+      }
     } else {
       // Create new review
       const review = {
         name: req.user.name,
         rating: Number(rating),
-        comment,
         user: req.user._id,
+        comments: comment ? [{ text: comment }] : []
       };
       course.reviews.push(review);
-      course.numReviews = course.reviews.length;
     }
 
+    course.numReviews = course.reviews.length;
+    
     // Calculate new average rating
-    course.rating =
-      course.reviews.reduce((acc, item) => item.rating + acc, 0) /
-      course.reviews.length;
+    if (course.reviews.length > 0) {
+      course.rating =
+        course.reviews.reduce((acc, item) => item.rating + acc, 0) /
+        course.reviews.length;
+    } else {
+      course.rating = 0;
+    }
 
     await course.save();
     return res.status(201).json({ message: 'Review saved successfully', reviews: course.reviews });
