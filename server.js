@@ -91,20 +91,33 @@ io.on('connection', (socket) => {
     io.to(targetSocketId).emit('revoke-media');
   });
 
+  socket.on('peer-reconnect', (roomId) => {
+    // Notify all other users in the room to clean up their peer for this socket
+    socket.to(roomId).emit('user-disconnected', socket.id);
+    // Send fresh user list back to the reconnecting user so they create new peers
+    const usersInRoom = (roomUsers[roomId] || []).filter(u => u.socketId !== socket.id);
+    socket.emit('all-users', usersInRoom);
+    socket.emit('media-status-changed', Array.from(grantedUsers[roomId] || new Set()));
+  });
+
   socket.on('chat-message', (roomId, messageData) => {
     io.to(roomId).emit('chat-message', messageData);
   });
 
   socket.on('disconnect', () => {
     console.log('Socket disconnected:', socket.id);
-    // Remove user from roomUsers
     for (const roomId in roomUsers) {
-      roomUsers[roomId] = roomUsers[roomId].filter(u => u.socketId !== socket.id);
-      if (roomUsers[roomId].length === 0) {
-        delete roomUsers[roomId];
+      const userIndex = roomUsers[roomId].findIndex(u => u.socketId === socket.id);
+      if (userIndex !== -1) {
+        roomUsers[roomId].splice(userIndex, 1);
+        // Broadcast only to the specific room, not all sockets
+        socket.to(roomId).emit('user-disconnected', socket.id);
+        if (roomUsers[roomId].length === 0) {
+          delete roomUsers[roomId];
+          delete grantedUsers[roomId];
+        }
       }
     }
-    socket.broadcast.emit('user-disconnected', socket.id);
   });
 });
 
