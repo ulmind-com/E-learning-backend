@@ -8,11 +8,7 @@ import fs from 'fs';
 
 const router = express.Router();
 
-// Initialize Razorpay
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_dummy_id',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_secret',
-});
+// Razorpay will be instantiated dynamically in routes to ensure env vars are loaded
 
 // @desc    Direct Enroll (Bypass Payment)
 // @route   POST /api/payment/enroll
@@ -96,6 +92,11 @@ router.post('/create-order', protect, async (req, res) => {
       currency: 'INR',
       receipt: `receipt_${Date.now()}_${req.user._id}`,
     };
+
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_dummy_id',
+      key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_secret',
+    });
 
     const razorpayOrder = await razorpay.orders.create(options);
 
