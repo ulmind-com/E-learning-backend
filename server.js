@@ -124,7 +124,7 @@ io.on('connection', (socket) => {
 
 // Middlewares
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000', 'https://ulmind-skills.vercel.app'],
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000', 'https://ulmind-skills.vercel.app', 'https://e-learning-frontend-210s.onrender.com'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
